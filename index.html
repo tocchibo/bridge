@@ -158,8 +158,10 @@
 
     // 予防保全グラフのトレース
     const postponedPreventValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement);
-    let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, preventCost], '予防保全PV', '#F79646', 20);
-    let preventiveMaintenancePostponeTrace = createTrace([0, 0], [preventCost, preventCost + postponedPreventValue], '修繕費用PV', '#0099B3', 20);
+    // let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, preventCost], '予防保全PV', '#F79646', 20);
+    // let preventiveMaintenancePostponeTrace = createTrace([0, 0], [preventCost, preventCost + postponedPreventValue], '修繕費用PV', '#0099B3', 20);
+    let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, postponedPreventValue], '修繕費用PV', '#0099B3', 20);
+    let preventiveMaintenancePostponeTrace = createTrace([0, 0], [postponedPreventValue, preventCost + postponedPreventValue], '予防保全PV', '#F79646', 20);
     let preventiveMaintenanceRepairCostTrace = createTrace([repairUrgency + postponement, repairUrgency + postponement], [0, repairCost], '修繕費用', 'DBEEF4', 20);
 
     // 予防保全効果グラフのデータ
