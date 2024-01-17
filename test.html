@@ -30,6 +30,39 @@
         max-width: 100%; /* スマートフォンなど小さな画面では最大幅を100%に */
       }
     }
+    #financialInfo {
+    font-size: 1.2em; /* フォントサイズを大きくする */
+    margin-bottom: 10px;
+    padding: 10px;
+  }
+
+  /* スライダーとラベルのスタイル */
+  #sliders div {
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders label {
+    display: block; /* ラベルをブロック要素に */
+    font-size: 1.0em; /* ラベルのフォントサイズを大きくする */
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders input[type="range"] {
+    width: 75%; /* スライダーの幅を100%に */
+    cursor: pointer; /* カーソルをポインターに */
+  }
+
+  /* スライダーのトラックとハンドルのスタイルをカスタマイズする場合 */
+  /* 以下は例です。ブラウザによって異なる場合があります */
+  #sliders input[type="range"]::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+  }
+
+  #sliders input[type="range"]::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+  }
   </style>
   
 
@@ -234,7 +267,7 @@
   window.onload = function() {
     updatePlots(); // ウィンドウが完全にロードされた後にグラフを更新
   };
-  
+
   window.onresize = function() {
     updatePlots(); // ウィンドウのサイズが変更されたときにグラフを更新
     
