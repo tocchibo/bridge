@@ -2,51 +2,96 @@
 <html>
 <head>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<style>
-  /* レスポンシブデザイン用のスタイル */
-  @media (min-width: 800px) {
-    .info-container {
+  <style>
+    .chart-container, .main-container {
       display: flex;
-      justify-content: space-between;
+      flex-direction: row;
+      height: 50vh; /* 画面の高さの50%を各コンテナに割り当てる */
     }
-
-    #sliders, #financialInfo {
-      flex: 1;
+  
+    .chart, #preventiveEffectChart {
+      flex: 1 1 auto; /* フレックスアイテムは成長も縮小も可能 */
+      max-width: 50%; /* グラフの最大幅を親コンテナの50%に制限 */
+    }
+  
+    .sidebar {
+      flex: 1 1 auto;
       padding: 10px;
-    }
-
-    .chart-container {
       display: flex;
+      flex-direction: column;
     }
-
-    .chart {
-      flex: 1;
-      padding: 10px;
+  
+    @media (max-width: 800px) {
+      .chart-container, .main-container {
+        flex-direction: column;
+      }
+  
+      .chart, #preventiveEffectChart {
+        max-width: 100%; /* スマートフォンなど小さな画面では最大幅を100%に */
+      }
     }
+    #financialInfo {
+    font-size: 1.2em; /* フォントサイズを大きくする */
+    margin-bottom: 10px;
+    padding: 10px;
   }
-</style>
+
+  /* スライダーとラベルのスタイル */
+  #sliders div {
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders label {
+    display: block; /* ラベルをブロック要素に */
+    font-size: 1.0em; /* ラベルのフォントサイズを大きくする */
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders input[type="range"] {
+    width: 75%; /* スライダーの幅を100%に */
+    cursor: pointer; /* カーソルをポインターに */
+  }
+
+  /* スライダーのトラックとハンドルのスタイルをカスタマイズする場合 */
+  /* 以下は例です。ブラウザによって異なる場合があります */
+  #sliders input[type="range"]::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+  }
+
+  #sliders input[type="range"]::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+  }
+  </style>
+  
 
   
 </head>
 <body>
 
-<!-- グラフのコンテナ -->
+
+<!-- その他のグラフ -->
 <div class="chart-container">
   <!-- 事後保全グラフ -->
   <div class="chart" id="postMaintenanceChart"></div>
-
   <!-- 予防保全グラフ -->
   <div class="chart" id="preventiveMaintenanceChart"></div>
 </div>
 
-<!-- 予防保全効果グラフ -->
-<div id="preventiveEffectChart"></div>
+<!-- グラフと財務情報のコンテナ -->
+<div class="main-container">
+  <!-- 予防保全効果グラフ -->
+  <div id="preventiveEffectChart"></div>
 
-<!-- 財務情報の表示エリア -->
-<div id="financialInfo"></div>
-
-<!-- スライダーの設定 -->
-<div id="sliders"></div>
+  <!-- 財務情報とスライダーのコンテナ -->
+  <div class="sidebar">
+    <!-- 財務情報 -->
+    <div id="financialInfo"></div>
+    <!-- スライダー -->
+    <div id="sliders"></div>
+  </div>
+</div>
 
 <script>
   // グラフの設定値
@@ -184,19 +229,25 @@
     let layoutPostMaintenance = {
       title: graphSettings.titlePostMaintenance,
       xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
-      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false }
+      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
+      autosize: true,
+      legend: { orientation: 'h', x: 0, y: 1.1 }
     };
 
     let layoutPreventiveMaintenance = {
       title: graphSettings.titlePreventiveMaintenance,
       xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
-      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false }
+      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
+      autosize: true,
+      legend: { orientation: 'h', x: 0, y: 1.1 }
     };
 
     let layoutPreventiveEffect = {
       title: '予防保全効果',
       xaxis: { range: [sliderSettings.postponement.min, sliderSettings.postponement.max], title: '延期年数 [年]', showgrid: true, zeroline: true },
-      yaxis: { range: graphSettings.preventiveEffectYAxisRange, title: '予防保全効果 [千円]', showline: false }
+      yaxis: { range: graphSettings.preventiveEffectYAxisRange, title: '予防保全効果 [千円]', showline: false },
+      autosize: true,
+      legend: { orientation: 'h', x: 0, y: 1.1 }
     };
 
     // 事後保全グラフを描画
@@ -212,6 +263,35 @@
 
   // 初期グラフを描画する
   updatePlots();
+
+  window.onload = function() {
+    updatePlots(); // ウィンドウが完全にロードされた後にグラフを更新
+  };
+
+  window.onresize = function() {
+    updatePlots(); // ウィンドウのサイズが変更されたときにグラフを更新
+    
+  // 各グラフのコンテナの幅を取得
+  var postMaintenanceChartWidth = document.getElementById('postMaintenanceChart').clientWidth;
+  var preventiveMaintenanceChartWidth = document.getElementById('preventiveMaintenanceChart').clientWidth;
+  var preventiveEffectChartWidth = document.getElementById('preventiveEffectChart').clientWidth;
+
+  // 事後保全グラフのサイズを更新
+  Plotly.relayout('postMaintenanceChart', {
+    width: postMaintenanceChartWidth
+  });
+
+  // 予防保全グラフのサイズを更新
+  Plotly.relayout('preventiveMaintenanceChart', {
+    width: preventiveMaintenanceChartWidth
+  });
+
+  // 予防保全効果グラフのサイズを更新
+  Plotly.relayout('preventiveEffectChart', {
+    width: preventiveEffectChartWidth
+  });
+    };
+
 </script>
 
 </body>
