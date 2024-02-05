@@ -106,7 +106,7 @@
   // スライダーの設定値
   const sliderSettings = {
     preventCost: { min: 0, max: 25000, value: 1000, step: 1, label: "予防保全費用 [千円]" },
-    repairCost: { min: 1000, max: 2000000, value: 100000, step: 1, label: "修繕費用 [千円]" },
+    repairCost: { min: 1000, max: 200000, value: 100000, step: 1, label: "修繕費用 [千円]" },
     discountRate: { min: 0, max: 10, value: 1, step: 0.1, label: "割引率 [%]" },
     repairUrgency: { min: 0, max: 20, value: 5, step: 1, label: "修繕ひっ迫度 [年]" },
     postponement: { min: 0, max: 20, value: 10, step: 1, label: "延期効果 [年]" }
@@ -115,35 +115,53 @@
   // スライダー要素を生成
   const slidersContainer = document.getElementById('sliders');
   Object.keys(sliderSettings).forEach(key => {
-    const setting = sliderSettings[key];
-    const container = document.createElement('div');
-    
-    const label = document.createElement('label');
-    label.htmlFor = key + '-slider';
-    label.textContent = setting.label + ': ';
-    container.appendChild(label);
-    
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.id = key + '-slider';
-    slider.min = setting.min;
-    slider.max = setting.max;
-    slider.value = setting.value;
-    slider.step = setting.step;
-    container.appendChild(slider);
-    
-    const span = document.createElement('span');
-    span.id = key + '-value';
-    span.textContent = slider.value;
-    container.appendChild(span);
-    
-    slidersContainer.appendChild(container);
-    
-    slider.oninput = function() {
-      document.getElementById(key + '-value').textContent = this.value;
-      updatePlots();
-    };
-  });
+  const setting = sliderSettings[key];
+  const container = document.createElement('div');
+  
+  const label = document.createElement('label');
+  label.htmlFor = key + '-slider';
+  label.textContent = setting.label + ': ';
+  container.appendChild(label);
+  
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.id = key + '-slider';
+  slider.min = setting.min;
+  slider.max = setting.max;
+  slider.value = setting.value;
+  slider.step = setting.step;
+  container.appendChild(slider);
+  
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.id = key + '-input';
+  input.value = setting.value;
+  input.min = setting.min;
+  input.max = setting.max;
+  input.step = setting.step;
+  container.appendChild(input);
+  
+  const span = document.createElement('span');
+  span.id = key + '-value';
+  span.textContent = slider.value;
+  container.appendChild(span);
+  
+  slidersContainer.appendChild(container);
+  
+  slider.oninput = function() {
+  const value = this.value;
+  document.getElementById(key + '-value').textContent = Number(value).toLocaleString();
+  document.getElementById(key + '-input').value = value;
+  updatePlots();
+};
+
+input.oninput = function() {
+  const value = this.value;
+  document.getElementById(key + '-value').textContent = Number(value).toLocaleString();
+  document.getElementById(key + '-slider').value = value;
+  updatePlots();
+};
+});
 
   // トレースのデータを生成する関数
   function createTrace(x, y, name, color, width) {
@@ -175,91 +193,83 @@
 
   // グラフを更新する関数
   function updatePlots() {
-    // スライダーから値を取得
-    const preventCost = parseFloat(document.getElementById('preventCost-slider').value);
-    const repairCost = parseFloat(document.getElementById('repairCost-slider').value);
-    const discountRate = parseFloat(document.getElementById('discountRate-slider').value);
-    const repairUrgency = parseFloat(document.getElementById('repairUrgency-slider').value);
-    const postponement = parseFloat(document.getElementById('postponement-slider').value);
+  // スライダーから値を取得
+  const preventCost = parseFloat(document.getElementById('preventCost-slider').value);
+  const repairCost = parseFloat(document.getElementById('repairCost-slider').value);
+  const discountRate = parseFloat(document.getElementById('discountRate-slider').value);
+  const repairUrgency = parseFloat(document.getElementById('repairUrgency-slider').value);
+  const postponement = parseFloat(document.getElementById('postponement-slider').value);
 
-    // 財務的予防保全効果の計算
-    const preventiveEffect = repairCost / Math.pow((1 + discountRate / 100), repairUrgency) - (preventCost + repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement));
+  // 共通計算
+  const preventValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency);
+  const postponedValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement);
+  const preventiveEffect = preventValue - (preventCost + postponedValue);
+  const breakEvenPoint = - Math.log(1 - preventCost / repairCost * Math.pow((1 + discountRate / 100), repairUrgency)) / Math.log(1 + discountRate / 100);
 
-    // 損益分岐点の計算
-    const breakEvenPoint = - Math.log(1 - preventCost / repairCost * Math.pow((1 + discountRate / 100), repairUrgency)) / Math.log(1 + discountRate / 100);
+  // 財務情報を表示
+  document.getElementById('financialInfo').innerHTML = `
+  <strong>財務的予防保全効果:</strong> ${preventiveEffect.toLocaleString()}千円<br>
+  <strong>損益分岐点:</strong> ${breakEvenPoint.toFixed(2)}年
+  `;
 
-    // 財務情報を表示
-    document.getElementById('financialInfo').innerHTML = `
-      <strong>財務的予防保全効果:</strong> ${preventiveEffect.toFixed(2)}千円<br>
-      <strong>損益分岐点:</strong> ${breakEvenPoint.toFixed(2)}年
-    `;
+  // 事後保全グラフのトレース
+  let postMaintenanceRepairCostPVTrace = createTrace([0, 0], [0, preventValue], '修繕費用PV', '#0099B3', 20);
+  let postMaintenanceRepairCostTrace = createTrace([repairUrgency, repairUrgency], [0, repairCost], '修繕費用', '#DBEEF4', 20);
 
-    // preventValueの算出
-    const preventValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency);
+  // 予防保全グラフのトレース
+  let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, postponedValue], '修繕費用PV', '#0099B3', 20);
+  let preventiveMaintenancePostponeTrace = createTrace([0, 0], [postponedValue, preventCost + postponedValue], '予防保全PV', '#F79646', 20);
+  let preventiveMaintenanceRepairCostTrace = createTrace([repairUrgency + postponement, repairUrgency + postponement], [0, repairCost], '修繕費用', '#DBEEF4', 20);
 
-    // 事後保全グラフのトレース
-    let postMaintenanceRepairCostPVTrace = createTrace([0, 0], [0, preventValue], '修繕費用PV', '#0099B3', 20);
-    let postMaintenanceRepairCostTrace = createTrace([repairUrgency, repairUrgency], [0, repairCost], '修繕費用', '#DBEEF4', 20);
+  // 予防保全効果グラフのデータ
+  const [xData, yData] = createPreventiveEffectData(repairCost, discountRate, repairUrgency, preventCost);
+  let preventiveEffectTrace = createTrace(xData, yData, '予防保全効果', '#0099B3', 3);
 
-    // 予防保全グラフのトレース
-    const postponedPreventValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement);
-    // let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, preventCost], '予防保全PV', '#F79646', 20);
-    // let preventiveMaintenancePostponeTrace = createTrace([0, 0], [preventCost, preventCost + postponedPreventValue], '修繕費用PV', '#0099B3', 20);
-    let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, postponedPreventValue], '修繕費用PV', '#0099B3', 20);
-    let preventiveMaintenancePostponeTrace = createTrace([0, 0], [postponedPreventValue, preventCost + postponedPreventValue], '予防保全PV', '#F79646', 20);
-    let preventiveMaintenanceRepairCostTrace = createTrace([repairUrgency + postponement, repairUrgency + postponement], [0, repairCost], '修繕費用', 'DBEEF4', 20);
+  // 新しい点線データの追加
+  let preventiveEffectDottedLineTrace = createTrace(
+    [postponement, postponement],
+    [0, preventiveEffect],
+    '延期年数による効果',
+    'black',
+    3
+  );
+  preventiveEffectDottedLineTrace.line.dash = 'dot'; // 点線スタイルの設定
 
-    // 予防保全効果グラフのデータ
-    const [xData, yData] = createPreventiveEffectData(repairCost, discountRate, repairUrgency, preventCost);
-    let preventiveEffectTrace = createTrace(xData, yData, '予防保全効果', '#0099B3', 3);
+  // グラフの初期設定
+  let layoutPostMaintenance = {
+    title: graphSettings.titlePostMaintenance,
+    xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
+    yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
+    autosize: true,
+    legend: { orientation: 'h', x: 0, y: 1.1 }
+  };
 
-    // 新しい点線データの追加
-    const preventiveEffectDottedLineY = repairCost / Math.pow((1 + discountRate / 100), repairUrgency) - (preventCost + repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement));
-    let preventiveEffectDottedLineTrace = createTrace(
-      [postponement, postponement],
-      [0, preventiveEffectDottedLineY],
-      '延期年数による効果',
-      'black',
-      3
-    );
-    preventiveEffectDottedLineTrace.line.dash = 'dot'; // 点線スタイルの設定
+  let layoutPreventiveMaintenance = {
+    title: graphSettings.titlePreventiveMaintenance,
+    xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
+    yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
+    autosize: true,
+    legend: { orientation: 'h', x: 0, y: 1.1 }
+  };
 
+  let layoutPreventiveEffect = {
+    title: '予防保全効果',
+    xaxis: { range: [sliderSettings.postponement.min, sliderSettings.postponement.max], title: '延期年数 [年]', showgrid: true, zeroline: true },
+    yaxis: { range: graphSettings.preventiveEffectYAxisRange, title: '予防保全効果 [千円]', showline: false },
+    autosize: true,
+    legend: { orientation: 'h', x: 0, y: 1.1 }
+  };
 
-    // グラフの初期設定
-    let layoutPostMaintenance = {
-      title: graphSettings.titlePostMaintenance,
-      xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
-      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
-      autosize: true,
-      legend: { orientation: 'h', x: 0, y: 1.1 }
-    };
+  // 事後保全グラフを描画
+  Plotly.react('postMaintenanceChart', [postMaintenanceRepairCostPVTrace, postMaintenanceRepairCostTrace], layoutPostMaintenance);
 
-    let layoutPreventiveMaintenance = {
-      title: graphSettings.titlePreventiveMaintenance,
-      xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
-      yaxis: { range: graphSettings.yAxisRange, title: '費用 [千円]', showline: false },
-      autosize: true,
-      legend: { orientation: 'h', x: 0, y: 1.1 }
-    };
+  // 予防保全グラフを描画
+  Plotly.react('preventiveMaintenanceChart', [preventiveMaintenancePreventTrace, preventiveMaintenancePostponeTrace, preventiveMaintenanceRepairCostTrace], layoutPreventiveMaintenance);
 
-    let layoutPreventiveEffect = {
-      title: '予防保全効果',
-      xaxis: { range: [sliderSettings.postponement.min, sliderSettings.postponement.max], title: '延期年数 [年]', showgrid: true, zeroline: true },
-      yaxis: { range: graphSettings.preventiveEffectYAxisRange, title: '予防保全効果 [千円]', showline: false },
-      autosize: true,
-      legend: { orientation: 'h', x: 0, y: 1.1 }
-    };
+  // 予防保全効果グラフを描画
+  Plotly.react('preventiveEffectChart', [preventiveEffectTrace, preventiveEffectDottedLineTrace], layoutPreventiveEffect);
+}
 
-    // 事後保全グラフを描画
-    Plotly.react('postMaintenanceChart', [postMaintenanceRepairCostPVTrace, postMaintenanceRepairCostTrace], layoutPostMaintenance);
-
-    // 予防保全グラフを描画
-    Plotly.react('preventiveMaintenanceChart', [preventiveMaintenancePreventTrace, preventiveMaintenancePostponeTrace, preventiveMaintenanceRepairCostTrace], layoutPreventiveMaintenance);
-
-    // 予防保全効果グラフを描画
-    Plotly.react('preventiveEffectChart', [preventiveEffectTrace, preventiveEffectDottedLineTrace], layoutPreventiveEffect);
-
-  }
 
   // 初期グラフを描画する
   updatePlots();
