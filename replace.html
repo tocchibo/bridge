@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    .chart-container, .main-container {
+      display: flex;
+      flex-direction: row;
+      height: 50vh; /* 画面の高さの50%を各コンテナに割り当てる */
+    }
+  
+    .chart, #preventiveEffectChart {
+      flex: 1 1 auto; /* フレックスアイテムは成長も縮小も可能 */
+      max-width: 50%; /* グラフの最大幅を親コンテナの50%に制限 */
+    }
+  
+    .sidebar {
+      flex: 1 1 auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+  
+    @media (max-width: 800px) {
+      .chart-container, .main-container {
+        flex-direction: column;
+      }
+  
+      .chart, #preventiveEffectChart {
+        max-width: 100%; /* スマートフォンなど小さな画面では最大幅を100%に */
+      }
+    }
+    #financialInfo {
+    font-size: 1.2em; /* フォントサイズを大きくする */
+    margin-bottom: 10px;
+    padding: 10px;
+  }
+
+  /* スライダーとラベルのスタイル */
+  #sliders div {
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders label {
+    display: block; /* ラベルをブロック要素に */
+    font-size: 1.0em; /* ラベルのフォントサイズを大きくする */
+    margin: 2px 0; /* 各スライダーの間隔を広げる */
+  }
+
+  #sliders input[type="range"] {
+    width: 75%; /* スライダーの幅を100%に */
+    cursor: pointer; /* カーソルをポインターに */
+  }
+
+  /* スライダーのトラックとハンドルのスタイルをカスタマイズする場合 */
+  /* 以下は例です。ブラウザによって異なる場合があります */
+  #sliders input[type="range"]::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+  }
+
+  #sliders input[type="range"]::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+  }
+  </style>
+  
+
+  
+</head>
+<body>
+
+
+<!-- その他のグラフ -->
+<div class="chart-container">
+  <!-- 事後保全グラフ -->
+  <div class="chart" id="postMaintenanceChart"></div>
+  <!-- 予防保全グラフ -->
+  <div class="chart" id="preventiveMaintenanceChart"></div>
+</div>
+
+<!-- グラフと財務情報のコンテナ -->
+<div class="main-container">
+  <!-- 予防保全効果グラフ -->
+  <div id="preventiveEffectChart"></div>
+
+  <!-- 財務情報とスライダーのコンテナ -->
+  <div class="sidebar">
+    <!-- 財務情報 -->
+    <div id="financialInfo"></div>
+    <!-- スライダー -->
+    <div id="sliders"></div>
+  </div>
+</div>
+
+<script>
+  // グラフの設定値
+  const graphSettings = {
+    xAxisRange: [-1, 65],
+    yAxisRange: [0, 40000],
+    titlePostMaintenance: "事後保全",
+    titlePreventiveMaintenance: "予防保全",
+    preventiveEffectXAxisRange: [0, 15],
+    preventiveEffectYAxisRange: [-5000, 5000]
+  };
+
+  // スライダーの設定値
+  const sliderSettings = {
+    preventCost: { min: 0, max: 10000, value: 210, step: 1, label: "予防保全費用 [万円]" },
+    repairCost: { min: 0, max: 10000, value: 5000, step: 1, label: "修繕費用 [万円]" },
+    repairUrgency: { min: 0, max: 100, value: 10, step: 1, label: "修繕ひっ迫度 [年]" },
+    replacementCost: { min: 0, max: 100000, value: 28500, step: 1, label: "架替費用 [万円]" },
+    replacementUrgency: { min: 0, max: 100, value: 50, step: 1, label: "架替ひっ迫度 [年]" },
+    postponement: { min: 0, max: 20, value: 10, step: 1, label: "延期効果 [年]" },
+    discountRate: { min: 0, max: 10, value: 1, step: 0.1, label: "割引率 [%]" }
+};
+
+  // スライダー要素を生成
+  const slidersContainer = document.getElementById('sliders');
+  Object.keys(sliderSettings).forEach(key => {
+  const setting = sliderSettings[key];
+  const container = document.createElement('div');
+  
+  const label = document.createElement('label');
+  label.htmlFor = key + '-slider';
+  label.textContent = setting.label + ': ';
+  container.appendChild(label);
+  
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.id = key + '-slider';
+  slider.min = setting.min;
+  slider.max = setting.max;
+  slider.value = setting.value;
+  slider.step = setting.step;
+  container.appendChild(slider);
+  
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.id = key + '-input';
+  input.value = setting.value;
+  input.min = setting.min;
+  input.max = setting.max;
+  input.step = setting.step;
+  container.appendChild(input);
+  
+  const span = document.createElement('span');
+  span.id = key + '-value';
+  span.textContent = slider.value;
+  container.appendChild(span);
+  
+  slidersContainer.appendChild(container);
+  
+  slider.oninput = function() {
+  const value = this.value;
+  document.getElementById(key + '-value').textContent = Number(value).toLocaleString();
+  document.getElementById(key + '-input').value = value;
+  updatePlots();
+};
+
+input.oninput = function() {
+  const value = this.value;
+  document.getElementById(key + '-value').textContent = Number(value).toLocaleString();
+  document.getElementById(key + '-slider').value = value;
+  updatePlots();
+};
+});
+
+  // トレースのデータを生成する関数
+  function createTrace(x, y, name, color, width, hoverValue) {
+    return {
+      x: x,
+      y: y,
+      mode: 'lines',
+      name: name,
+      line: {
+        width: width,
+        color: color
+      },
+      type: 'scatter'
+    };
+  }
+
+  // 予防保全効果のデータを生成する関数
+  function createPreventiveEffectData(repairCost, replacementCost, discountRate, repairUrgency, replacementUrgency, preventCost) {
+    const xData = [];
+    const yData = [];
+    for (let x = 0; x <= graphSettings.xAxisRange[1]; x += 0.1) {
+      xData.push(x);
+
+      // 修繕費用の現在価値
+      const repairValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency);
+      const postponedRepairValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency + x);
+
+      // 架け替え費用の現在価値
+      const replacementValue = replacementCost / Math.pow((1 + discountRate / 100), replacementUrgency);
+      const postponedReplacementValue = replacementCost / Math.pow((1 + discountRate / 100), replacementUrgency + x);
+
+      // 予防保全効果の計算
+      const preventiveEffect = repairValue + replacementValue - (preventCost + postponedRepairValue + postponedReplacementValue);
+      yData.push(preventiveEffect)
+    }
+    return [xData, yData];
+  }
+
+  // グラフを更新する関数
+  function updatePlots() {
+    // スライダーから値を取得
+    const preventCost = parseFloat(document.getElementById('preventCost-slider').value);
+    const repairCost = parseFloat(document.getElementById('repairCost-slider').value);
+    const discountRate = parseFloat(document.getElementById('discountRate-slider').value);
+    const repairUrgency = parseFloat(document.getElementById('repairUrgency-slider').value);
+    const replacementCost = parseFloat(document.getElementById('replacementCost-slider').value);
+    const replacementUrgency = parseFloat(document.getElementById('replacementUrgency-slider').value);
+    const postponement = parseFloat(document.getElementById('postponement-slider').value);
+
+    // 修繕費用の現在価値
+    const repairValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency);
+    const postponedRepairValue = repairCost / Math.pow((1 + discountRate / 100), repairUrgency + postponement);
+
+    // 架け替え費用の現在価値
+    const replacementValue = replacementCost / Math.pow((1 + discountRate / 100), replacementUrgency);
+    const postponedReplacementValue = replacementCost / Math.pow((1 + discountRate / 100), replacementUrgency + postponement);
+
+    // 予防保全効果の計算
+    const preventiveEffect = repairValue + replacementValue - (preventCost + postponedRepairValue + postponedReplacementValue);
+
+    // 損益分岐点の計算
+    // const breakEvenPoint = (Math.log(repairValue + replacementValue) - Math.log(repairValue + replacementValue - preventCost)) / Math.log(1 + discountRate / 100);
+    const breakEvenPoint = - Math.log(1 - preventCost / (repairValue + replacementValue)) / Math.log(1 + discountRate / 100);
+
+    // 財務情報を表示
+    document.getElementById('financialInfo').innerHTML = `
+    <strong>財務的予防保全効果:</strong> ${preventiveEffect.toLocaleString()}千円<br>
+    <strong>損益分岐点:</strong> ${breakEvenPoint.toFixed(2)}年
+    `;
+
+    // 事後保全グラフのトレース
+    let postMaintenanceRepairCostPVTrace = createTrace([0, 0], [0, repairValue], '修繕費用PV', '#0099B3', 20);
+    let postMaintenanceReplacementCostPVTrace = createTrace([0, 0], [repairValue, repairValue + replacementValue], '架替費用PV', '#8064A2', 20);
+
+    let postMaintenanceRepairCostTrace = createTrace([repairUrgency, repairUrgency], [0, repairCost], '修繕費用', '#DBEEF4', 20);
+    let postMaintenanceReplacementCostTrace = createTrace([replacementUrgency, replacementUrgency], [0, replacementCost], '架替費用', '#B3A2C7', 20);
+
+    // 予防保全グラフのトレース
+    let preventiveMaintenancePreventTrace = createTrace([0, 0], [0, postponedRepairValue], '修繕費用PV', '#0099B3', 20);
+    let preventiveMaintenanceReplacementPostponeTrace = createTrace([0, 0], [postponedRepairValue, postponedRepairValue + postponedReplacementValue], '架替費用PV', '#8064A2', 20);
+    let preventiveMaintenancePostponeTrace = createTrace([0, 0], [postponedRepairValue + postponedReplacementValue, postponedRepairValue + postponedReplacementValue + preventCost], '予防保全PV', '#F79646', 20);
+    let preventiveMaintenanceRepairCostTrace = createTrace([repairUrgency + postponement, repairUrgency + postponement], [0, repairCost], '修繕費用', '#DBEEF4', 20);
+
+    let preventiveMaintenanceReplacementCostTrace = createTrace([replacementUrgency + postponement, replacementUrgency + postponement], [0, replacementCost], '架替費用', '#B3A2C7', 20);
+
+    // 予防保全効果グラフのデータ
+    const [xData, yData] = createPreventiveEffectData(repairCost, replacementCost, discountRate, repairUrgency, replacementUrgency, preventCost);
+    let preventiveEffectTrace = createTrace(xData, yData, '予防保全効果', '#0099B3', 3);
+
+    // 新しい点線データの追加
+    let preventiveEffectDottedLineTrace = createTrace(
+        [postponement, postponement],
+        [0, preventiveEffect],
+        '延期年数による効果',
+        'black',
+        3
+    );
+    preventiveEffectDottedLineTrace.line.dash = 'dot'; // 点線スタイルの設定
+
+    // グラフの初期設定
+    let layoutPostMaintenance = {
+        title: graphSettings.titlePostMaintenance,
+        xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
+        yaxis: { range: graphSettings.yAxisRange, title: '費用 [万円]', showline: false },
+        autosize: true,
+        legend: { orientation: 'h', x: 0, y: 1.1 }
+    };
+
+    let layoutPreventiveMaintenance = {
+        title: graphSettings.titlePreventiveMaintenance,
+        xaxis: { range: graphSettings.xAxisRange, title: '年数 [年目]', showgrid: false, zeroline: false },
+        yaxis: { range: graphSettings.yAxisRange, title: '費用 [万円]', showline: false },
+        autosize: true,
+        legend: { orientation: 'h', x: 0, y: 1.1 }
+    };
+
+    let layoutPreventiveEffect = {
+        title: '予防保全効果',
+        xaxis: { range: graphSettings.preventiveEffectXAxisRange, title: '延期年数 [年]', showgrid: true, zeroline: true },
+        yaxis: { range: graphSettings.preventiveEffectYAxisRange, title: '予防保全効果 [万円]', showline: false },
+        autosize: true,
+        legend: { orientation: 'h', x: 0, y: 1.1 }
+    };
+
+    // 事後保全グラフを描画
+    Plotly.react('postMaintenanceChart', [postMaintenanceRepairCostPVTrace, postMaintenanceRepairCostTrace, postMaintenanceReplacementCostPVTrace, postMaintenanceReplacementCostTrace], layoutPostMaintenance);
+
+    // 予防保全グラフを描画
+    Plotly.react('preventiveMaintenanceChart', [preventiveMaintenancePreventTrace, preventiveMaintenancePostponeTrace, preventiveMaintenanceRepairCostTrace, preventiveMaintenanceReplacementPostponeTrace, preventiveMaintenanceReplacementCostTrace], layoutPreventiveMaintenance);
+
+    // 予防保全効果グラフを描画
+    Plotly.react('preventiveEffectChart', [preventiveEffectTrace, preventiveEffectDottedLineTrace], layoutPreventiveEffect);
+}
+
+// 初期グラフを描画する
+updatePlots();
+
+window.onload = function() {
+    updatePlots(); // ウィンドウが完全にロードされた後にグラフを更新
+};
+
+window.onresize = function() {
+    updatePlots(); // ウィンドウのサイズが変更されたときにグラフを更新
+    
+    // 各グラフのコンテナの幅を取得
+    var postMaintenanceChartWidth = document.getElementById('postMaintenanceChart').clientWidth;
+    var preventiveMaintenanceChartWidth = document.getElementById('preventiveMaintenanceChart').clientWidth;
+    var preventiveEffectChartWidth = document.getElementById('preventiveEffectChart').clientWidth;
+
+    // 事後保全グラフのサイズを更新
+    Plotly.relayout('postMaintenanceChart', {
+        width: postMaintenanceChartWidth
+    });
+
+    // 予防保全グラフのサイズを更新
+    Plotly.relayout('preventiveMaintenanceChart', {
+        width: preventiveMaintenanceChartWidth
+    });
+
+    // 予防保全効果グラフのサイズを更新
+    Plotly.relayout('preventiveEffectChart', {
+        width: preventiveEffectChartWidth
+    });
+};
+
+
+</script>
+
+</body>
+</html>
